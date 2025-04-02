@@ -288,8 +288,11 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
     return (
       <div key={key} className="border-b border-gray-200 px-3 py-3 hover:bg-gray-50">
         <div className="flex flex-row items-start">
-          {/* Key column */}
-          <div className="min-w-[120px] text-gray-500 pr-4">
+          {/* Key column - fixed width with ellipsis and tooltip */}
+          <div 
+            className="w-[140px] min-w-[140px] text-gray-500 pr-4 overflow-hidden text-ellipsis whitespace-nowrap"
+            title={key}
+          >
             {key}:
           </div>
           
