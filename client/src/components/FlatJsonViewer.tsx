@@ -340,11 +340,11 @@ export function FlatJsonViewer({ data, onEdit, initialEditMode, onEditModeChange
                 return (
                   <span
                     key={`${item.path}-${i}`}
-                    className={`rounded text-sm inline-flex items-center cursor-pointer 
+                    className={`py-1 rounded text-sm inline-flex items-center cursor-pointer 
                       ${item.isExtension 
                           ? 'bg-[#FFF7ED] border border-[#FDBA74] text-[#9A3412]' 
                           : 'bg-[#F3F4F6] text-gray-800'
-                      } ${enableEdit ? 'group relative hover:pr-5' : 'px-2'} py-1
+                      } ${enableEdit ? 'group relative hover:pr-5' : ''} 
                       ${isValueExpanded ? 'whitespace-normal' : 'whitespace-nowrap'}`}
                     title={item.path}
                     onClick={() => toggleValueExpansion(item.path)}
