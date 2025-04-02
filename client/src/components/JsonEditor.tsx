@@ -103,10 +103,12 @@ export function JsonEditor({ data, onUpdateJson }: JsonEditorProps) {
       </div>
       
       {/* Monaco Editor */}
-      <div className="flex-grow bg-white rounded-lg shadow-sm overflow-hidden" style={{ minHeight: "500px" }}>
+      <div className="flex-grow bg-white rounded-lg shadow-sm overflow-hidden">
         <Editor
-          height="100%"
+          height="75vh"
+          width="100%"
           language="json"
+          defaultValue={editorValue}
           value={editorValue}
           onChange={handleEditorChange}
           options={{
@@ -115,11 +117,13 @@ export function JsonEditor({ data, onUpdateJson }: JsonEditorProps) {
             scrollBeyondLastLine: false,
             automaticLayout: true,
             fontSize: 14,
+            wordWrap: 'on',
             scrollbar: {
               vertical: 'auto',
               horizontal: 'auto'
             }
           }}
+          loading="Загрузка редактора..."
         />
       </div>
     </div>

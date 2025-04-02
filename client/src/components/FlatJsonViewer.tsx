@@ -262,8 +262,7 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
                         ? 'bg-[#FFF7ED] border border-[#FDBA74] text-[#9A3412]' 
                         : 'bg-[#F3F4F6] text-gray-800'
                     } ${enableEdit ? 'group relative' : ''}
-                    max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap 
-                    ${isValueExpanded ? 'max-w-full whitespace-normal' : ''}`}
+                    max-w-[120px] ${isValueExpanded ? 'max-w-full whitespace-normal' : 'overflow-hidden overflow-ellipsis whitespace-nowrap'}`}
                   title={item.path}
                   onClick={() => toggleValueExpansion(item.path)}
                 >
