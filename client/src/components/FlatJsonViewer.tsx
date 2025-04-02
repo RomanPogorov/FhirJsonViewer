@@ -455,45 +455,6 @@ export function FlatJsonViewer({ data, onEdit, initialEditMode, onEditModeChange
               </Label>
             </div>
           </div>
-          
-          {/* Bottom row with copy/export buttons */}
-          <div className="flex justify-end space-x-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-                toast({
-                  title: "Скопировано!",
-                  description: "JSON скопирован в буфер обмена",
-                });
-              }}
-              className="text-xs"
-            >
-              Копировать JSON
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-                const downloadAnchorNode = document.createElement('a');
-                downloadAnchorNode.setAttribute("href", dataStr);
-                downloadAnchorNode.setAttribute("download", "fhir-data.json");
-                document.body.appendChild(downloadAnchorNode);
-                downloadAnchorNode.click();
-                downloadAnchorNode.remove();
-                toast({
-                  title: "Файл экспортирован",
-                  description: "FHIR JSON сохранен в файл fhir-data.json",
-                });
-              }}
-              className="text-xs"
-            >
-              Экспорт в файл
-            </Button>
-          </div>
         </div>
       </div>
 

@@ -124,6 +124,42 @@ export default function Home() {
             />
             <Button 
               variant="outline" 
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(jsonData, null, 2));
+                toast({
+                  title: "Скопировано!",
+                  description: "JSON скопирован в буфер обмена",
+                });
+              }}
+              className="text-xs text-gray-700 border-gray-300"
+            >
+              Копировать JSON
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonData, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "fhir-data.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+                toast({
+                  title: "Файл экспортирован",
+                  description: "FHIR JSON сохранен в файл fhir-data.json",
+                });
+              }}
+              className="text-xs text-gray-700 border-gray-300"
+            >
+              Экспорт в файл
+            </Button>
+            
+            <Button 
+              variant="outline" 
               onClick={handleUploadClick}
               className="text-gray-700 border-gray-300"
             >
