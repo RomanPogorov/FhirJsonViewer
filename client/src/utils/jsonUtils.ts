@@ -12,12 +12,14 @@ interface FlattenedJsonRow {
 
 // Function to check if a path or key is an extension
 function isExtensionPath(key: string, path: string): boolean {
-  // Проверяем более точно, чтобы избежать ложных срабатываний
-  // Ищем точное совпадение 'extension' как ключ или часть пути в формате .extension или [extension]
+  // Проверяем, является ли текущий ключ extension или содержит extension в пути
+  // Это также проверяет, если путь содержит 'extension' как часть своего компонента
+  // что означает, что данный элемент является частью объекта extension или потомком extension
   return key === 'extension' || 
          path === 'extension' || 
-         path.match(/\.extension(\.|$|\[)/) !== null || 
-         path.match(/\.extension\[\d+\]/) !== null;
+         path.includes('.extension') || 
+         path.includes('extension[') || 
+         path.match(/^extension(\.|$|\[)/) !== null;
 }
 
 // Function to create a parent path from a full path
