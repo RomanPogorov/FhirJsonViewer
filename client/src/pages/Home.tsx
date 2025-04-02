@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
-import { FhirJsonViewer } from "@/components/FhirJsonViewer";
 import { FlatJsonViewer } from "@/components/FlatJsonViewer";
+import { JsonEditor } from "@/components/JsonEditor";
 import { sampleFhirData } from "@/data/sampleFhirData";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FhirJson } from "@/types/fhir";
 
 export default function Home() {
-  const [viewType, setViewType] = useState<"tree" | "flat">("flat");
+  const [viewType, setViewType] = useState<"view" | "edit">("view");
   const [jsonData, setJsonData] = useState<FhirJson>(sampleFhirData);
   const [showSample, setShowSample] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +61,13 @@ export default function Home() {
     });
   };
   
+  // Update JSON data from editor
+  const handleJsonUpdate = (updatedJson: FhirJson) => {
+    setJsonData(updatedJson);
+    // Switch back to view mode after successful update
+    setViewType("view");
+  };
+  
   return (
     <div className="bg-[#F9FAFB] font-sans text-sm text-gray-800 min-h-screen">
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
@@ -100,16 +107,16 @@ export default function Home() {
         </div>
         
         {/* View Type Selector */}
-        <Tabs defaultValue="flat" className="mb-6" onValueChange={(value) => setViewType(value as "tree" | "flat")}>
+        <Tabs defaultValue="view" className="mb-6" onValueChange={(value) => setViewType(value as "view" | "edit")}>
           <TabsList className="grid w-[400px] grid-cols-2 mb-4">
-            <TabsTrigger value="flat">Плоский вид</TabsTrigger>
-            <TabsTrigger value="tree">Древовидный вид</TabsTrigger>
+            <TabsTrigger value="view">Просмотр</TabsTrigger>
+            <TabsTrigger value="edit">Редактирование</TabsTrigger>
           </TabsList>
-          <TabsContent value="flat">
+          <TabsContent value="view">
             <FlatJsonViewer data={jsonData} />
           </TabsContent>
-          <TabsContent value="tree">
-            <FhirJsonViewer data={jsonData} />
+          <TabsContent value="edit">
+            <JsonEditor data={jsonData} onUpdateJson={handleJsonUpdate} />
           </TabsContent>
         </Tabs>
       </div>

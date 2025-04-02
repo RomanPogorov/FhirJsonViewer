@@ -30,7 +30,7 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
     return key === 'extension' || path.includes('extension') || path.includes('Extension');
   };
   
-  // Extract primitive values from nested objects
+  // Extract primitive values from nested objects and arrays
   const extractPrimitiveValues = (obj: any, prefix: string = ""): FlattenedValue[] => {
     const result: FlattenedValue[] = [];
     
@@ -38,73 +38,78 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
       return result;
     }
     
-    // Process based on type
-    if (typeof obj === "object") {
-      if (Array.isArray(obj)) {
-        // For arrays, process each item
-        obj.forEach((item, index) => {
-          if (typeof item === "object" && item !== null) {
-            // For objects in arrays, extract inner values
-            Object.entries(item).forEach(([key, value]) => {
-              if (typeof value !== "object" || value === null) {
-                // Only add primitive values
-                result.push({
-                  key: key,
-                  value: value,
-                  isExtension: isExtensionPath(key, `${prefix}[${index}].${key}`),
-                  path: `${prefix}[${index}].${key}`
-                });
-              } else if (key === "url" || key === "code" || key === "system" || key === "display" || key === "text" || key === "value") {
-                // Special handling for common FHIR attributes within objects
-                result.push({
-                  key: key,
-                  value: typeof value === "object" ? JSON.stringify(value) : value,
-                  isExtension: isExtensionPath(key, `${prefix}[${index}].${key}`),
-                  path: `${prefix}[${index}].${key}`
-                });
-              }
+    // Function to extract all primitives deeply
+    const extractDeep = (value: any, path: string, key: string): void => {
+      if (value === null || value === undefined) {
+        result.push({
+          key: key,
+          value: value === null ? "null" : "undefined",
+          isExtension: isExtensionPath(key, path),
+          path: path
+        });
+        return;
+      }
+      
+      if (typeof value !== "object") {
+        // Handle primitive values
+        result.push({
+          key: key,
+          value: value,
+          isExtension: isExtensionPath(key, path),
+          path: path
+        });
+      } else if (Array.isArray(value)) {
+        // Handle arrays by processing each element
+        value.forEach((item, idx) => {
+          const itemPath = `${path}[${idx}]`;
+          if (typeof item !== "object" || item === null) {
+            // Primitive array item
+            result.push({
+              key: key,
+              value: item,
+              isExtension: isExtensionPath(key, itemPath),
+              path: itemPath
             });
           } else {
-            // Add primitive array values directly
-            result.push({
-              key: index.toString(),
-              value: item,
-              isExtension: isExtensionPath(prefix, prefix),
-              path: `${prefix}[${index}]`
+            // Object array item - process all keys
+            Object.entries(item).forEach(([itemKey, itemValue]) => {
+              const fullItemPath = `${itemPath}.${itemKey}`;
+              extractDeep(itemValue, fullItemPath, itemKey);
             });
           }
         });
       } else {
-        // For objects, extract primitive values
+        // Handle objects by processing each property
+        Object.entries(value).forEach(([objKey, objValue]) => {
+          const objPath = path ? `${path}.${objKey}` : objKey;
+          extractDeep(objValue, objPath, objKey);
+        });
+      }
+    };
+    
+    // Start extraction process
+    if (typeof obj === "object") {
+      if (Array.isArray(obj)) {
+        obj.forEach((item, index) => {
+          const itemPath = `${prefix}[${index}]`;
+          if (typeof item !== "object" || item === null) {
+            result.push({
+              key: index.toString(),
+              value: item,
+              isExtension: isExtensionPath(prefix, itemPath),
+              path: itemPath
+            });
+          } else {
+            Object.entries(item).forEach(([key, value]) => {
+              const fullPath = `${itemPath}.${key}`;
+              extractDeep(value, fullPath, key);
+            });
+          }
+        });
+      } else {
         Object.entries(obj).forEach(([key, value]) => {
-          if (typeof value !== "object" || value === null) {
-            // Add primitive values directly
-            result.push({
-              key: key,
-              value: value,
-              isExtension: isExtensionPath(key, prefix ? `${prefix}.${key}` : key),
-              path: prefix ? `${prefix}.${key}` : key
-            });
-          } else if (key === "url" || key === "code" || key === "system" || key === "display" || key === "text" || key === "value") {
-            // Special handling for common FHIR attributes
-            result.push({
-              key: key,
-              value: typeof value === "object" ? JSON.stringify(value) : value,
-              isExtension: isExtensionPath(key, prefix ? `${prefix}.${key}` : key),
-              path: prefix ? `${prefix}.${key}` : key
-            });
-          }
-          
-          // If value is extension array, mark it specially
-          if (key === "extension" && Array.isArray(value)) {
-            const extensionPath = prefix ? `${prefix}.${key}` : key;
-            result.push({
-              key: "extension",
-              value: `[${value.length} items]`,
-              isExtension: true,
-              path: extensionPath
-            });
-          }
+          const path = prefix ? `${prefix}.${key}` : key;
+          extractDeep(value, path, key);
         });
       }
     }
@@ -118,16 +123,6 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
     
     if (value === null || value === undefined) {
       return result;
-    }
-    
-    // Special case for meta.extension
-    if (key === 'meta' && typeof value === 'object' && value.extension) {
-      result.push({
-        key: 'meta.extension',
-        value: '[Extension]',
-        isExtension: true,
-        path: 'meta.extension'
-      });
     }
     
     // Top level arrays
@@ -149,16 +144,6 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
           // Extract primitive values from each object in array
           const primitives = extractPrimitiveValues(item, `${key}[${index}]`);
           result.push(...primitives);
-          
-          // Special handling for extensions
-          if (item.extension) {
-            result.push({
-              key: 'extension',
-              value: `[${item.extension.length} items]`,
-              isExtension: true,
-              path: `${key}[${index}].extension`
-            });
-          }
         });
       }
     } 
@@ -228,6 +213,22 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
     return flattened;
   };
   
+  // State to track expanded value items
+  const [expandedValues, setExpandedValues] = useState<Set<string>>(new Set());
+  
+  // Toggle value expansion
+  const toggleValueExpansion = (path: string) => {
+    setExpandedValues(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(path)) {
+        newSet.delete(path);
+      } else {
+        newSet.add(path);
+      }
+      return newSet;
+    });
+  };
+  
   // Render a single row with key and all its values
   const renderRow = (key: string, values: FlattenedValue[]) => {
     const isExpanded = expandedRows.has(key) || expandAll;
@@ -244,36 +245,47 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
           
           {/* Values column */}
           <div className="flex-grow flex flex-wrap gap-2">
-            {displayValues.map((item, i) => (
-              <span
-                key={`${item.path}-${i}`}
-                className={`px-2 py-1 rounded text-sm inline-flex items-center ${
-                  item.isExtension 
-                    ? 'bg-[#FFF7ED] border border-[#FDBA74] text-[#9A3412]' 
-                    : 'bg-[#F3F4F6] text-gray-800'
-                } ${enableEdit ? 'group relative' : ''}`}
-                title={item.path}
-              >
-                {typeof item.value === 'object' ? 
-                  (Array.isArray(item.value) ? '[Array]' : '[Object]') : 
-                  String(item.value)}
-                
-                {/* Edit icon (only visible when edit mode is enabled) */}
-                {enableEdit && (
-                  <span className="ml-1 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg 
-                      xmlns="http://www.w3.org/2000/svg" 
-                      viewBox="0 0 20 20" 
-                      fill="currentColor" 
-                      className="w-3 h-3"
-                    >
-                      <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
-                      <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
-                    </svg>
-                  </span>
-                )}
-              </span>
-            ))}
+            {displayValues.map((item, i) => {
+              const valueStr = typeof item.value === 'object' 
+                ? (Array.isArray(item.value) ? '[Array]' : '[Object]') 
+                : String(item.value);
+              
+              const isValueExpanded = expandedValues.has(item.path);
+              const shouldTruncate = valueStr.length > 20 && !isValueExpanded;
+              const displayValue = shouldTruncate ? `${valueStr.substring(0, 20)}...` : valueStr;
+              
+              return (
+                <span
+                  key={`${item.path}-${i}`}
+                  className={`px-2 py-1 rounded text-sm inline-flex items-center cursor-pointer 
+                    ${item.isExtension 
+                        ? 'bg-[#FFF7ED] border border-[#FDBA74] text-[#9A3412]' 
+                        : 'bg-[#F3F4F6] text-gray-800'
+                    } ${enableEdit ? 'group relative' : ''}
+                    max-w-[120px] overflow-hidden text-ellipsis whitespace-nowrap 
+                    ${isValueExpanded ? 'max-w-full whitespace-normal' : ''}`}
+                  title={item.path}
+                  onClick={() => toggleValueExpansion(item.path)}
+                >
+                  {displayValue}
+                  
+                  {/* Edit icon (only visible when edit mode is enabled) */}
+                  {enableEdit && (
+                    <span className="ml-1 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <svg 
+                        xmlns="http://www.w3.org/2000/svg" 
+                        viewBox="0 0 20 20" 
+                        fill="currentColor" 
+                        className="w-3 h-3"
+                      >
+                        <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
+                        <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
+                      </svg>
+                    </span>
+                  )}
+                </span>
+              );
+            })}
             
             {/* Show more/less button */}
             {hasMoreThan5 && (
@@ -283,7 +295,7 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
                 className="text-xs bg-[#18273F] text-white px-2 py-1 rounded hover:bg-[#18273F]/90 ml-2"
                 onClick={() => toggleRowExpansion(key)}
               >
-                {isExpanded ? 'Show less' : 'Show more'}
+                {isExpanded ? 'Показать меньше' : 'Показать больше'}
               </Button>
             )}
           </div>
