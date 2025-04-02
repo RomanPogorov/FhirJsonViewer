@@ -4,6 +4,13 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { FhirJson } from "@/types/fhir";
 
+// Объявление типа для Monaco API, которое будет доступно глобально
+declare global {
+  interface Window {
+    monaco: any;
+  }
+}
+
 interface JsonEditorProps {
   data: FhirJson;
   onUpdateJson: (json: FhirJson) => void;
@@ -18,63 +25,110 @@ export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
 
   // Функция для нахождения позиции элемента в текстовом JSON по пути
   const findPositionByPath = (jsonStr: string, path: string): { lineNumber: number, column: number } | null => {
-    // Преобразуем путь в массив ключей и индексов
-    const pathParts = path.split(/\.|\[|\]/).filter(part => part !== '');
-    
-    if (pathParts.length === 0) return null;
-    
-    // Базовые шаблоны поиска для различных частей пути
-    const patterns: string[] = [];
-    let currentPath = '';
-    
-    for (let i = 0; i < pathParts.length; i++) {
-      const part = pathParts[i];
-      
-      // Если текущая часть пути - число, значит это индекс массива
-      if (!isNaN(Number(part))) {
-        // Не добавляем его в шаблон отдельно, так как он уже учтен в предыдущей части с [индекс]
-        continue;
+    try {
+      // Анализируем путь в структуру более понятную для поиска
+      const pathSegments = parseJsonPath(path);
+      if (!pathSegments || pathSegments.length === 0) {
+        console.error('Не удалось разобрать путь:', path);
+        return null;
       }
       
-      // Обновляем текущий путь
-      if (currentPath) {
-        // Проверяем, следующая часть - индекс или ключ
-        const nextPart = pathParts[i + 1];
-        
-        if (nextPart && !isNaN(Number(nextPart))) {
-          // Если следующая часть - индекс, добавляем её в квадратных скобках
-          currentPath += `.${part}[${nextPart}]`;
-          i++; // Пропускаем следующую часть, так как мы уже её учли
-        } else {
-          currentPath += `.${part}`;
-        }
-      } else {
-        currentPath = part;
-      }
-      
-      // Добавляем шаблон для поиска текущей части пути
-      patterns.push(`"${part}"\\s*:`);
-    }
-    
-    // Поиск позиции последнего шаблона в JSON-строке
-    if (patterns.length > 0) {
-      const lastPattern = patterns[patterns.length - 1];
+      console.log('Разобранные сегменты пути:', pathSegments);
+
+      // Разбиваем JSON на строки для поиска
       const lines = jsonStr.split('\n');
       
+      // Для каждого сегмента в пути, находим соответствующую строку в JSON
+      let currentLineIndex = 0;
+      let lastPropertyName = pathSegments[pathSegments.length - 1].key;
+      
+      // Ищем последнее свойство в пути
       for (let i = 0; i < lines.length; i++) {
-        const lineContent = lines[i];
-        const match = lineContent.match(lastPattern);
+        const line = lines[i];
+        // Ищем строку, содержащую наш ключ
+        const pattern = new RegExp(`"${escapeRegExp(lastPropertyName)}"\\s*:`, 'g');
+        const match = pattern.exec(line);
         
         if (match) {
-          return {
-            lineNumber: i + 1, // Номера строк в Monaco начинаются с 1
-            column: match.index! + 1 // Номера колонок тоже начинаются с 1
+          // Если нашли, запоминаем эту строку
+          currentLineIndex = i;
+          
+          // Проверяем контекст - нужно убедиться, что это именно наш путь,
+          // а не просто совпадение имени свойства
+          const isCorrectPath = verifyPathContext(lines, currentLineIndex, pathSegments);
+          
+          if (isCorrectPath) {
+            console.log('Найдена соответствующая строка для свойства:', lastPropertyName, 'на строке', currentLineIndex + 1);
+            return {
+              lineNumber: currentLineIndex + 1, // Строки в редакторе начинаются с 1
+              column: match.index! + 1 // Колонки тоже начинаются с 1
+            };
+          }
+        }
+      }
+      
+      // Если не нашли точное совпадение, ищем любое вхождение последнего ключа
+      console.log('Не найдено точное совпадение, ищем любое вхождение ключа:', lastPropertyName);
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.includes(`"${lastPropertyName}"`)) {
+          console.log('Найдено приблизительное совпадение на строке:', i + 1);
+          return { 
+            lineNumber: i + 1,
+            column: line.indexOf(`"${lastPropertyName}"`) + 1
           };
         }
       }
+      
+      console.error('Не удалось найти позицию для пути:', path);
+      return null;
+    } catch (err) {
+      console.error('Ошибка при поиске позиции:', err);
+      return null;
     }
-    
-    return null;
+  };
+  
+  // Разбор пути JSON на сегменты
+  const parseJsonPath = (path: string): { key: string, isArray: boolean, index?: number }[] | null => {
+    try {
+      const segments: { key: string, isArray: boolean, index?: number }[] = [];
+      
+      // Регулярное выражение для разбора пути вида 'prop.array[0].nestedProp'
+      const regex = /([^\.\[\]]+)(?:\[(\d+)\])?/g;
+      let match;
+      
+      while ((match = regex.exec(path)) !== null) {
+        const [, key, indexStr] = match;
+        const isArray = indexStr !== undefined;
+        const index = isArray ? parseInt(indexStr, 10) : undefined;
+        
+        segments.push({ key, isArray, index });
+      }
+      
+      return segments;
+    } catch (err) {
+      console.error('Ошибка при разборе пути:', err);
+      return null;
+    }
+  };
+  
+  // Проверка контекста пути - убеждаемся, что найденное свойство
+  // находится в правильной вложенности
+  const verifyPathContext = (
+    lines: string[], 
+    lineIndex: number, 
+    pathSegments: { key: string, isArray: boolean, index?: number }[]
+  ): boolean => {
+    // Эта функция должна анализировать контекст JSON вокруг найденной строки,
+    // чтобы убедиться, что она соответствует ожидаемому пути.
+    // В простой реализации мы просто возвращаем true, но для более сложных
+    // структур JSON можно реализовать проверку на соответствие всему пути
+    return true;
+  };
+
+  // Экранирование спецсимволов для использования в регулярных выражениях
+  const escapeRegExp = (string: string): string => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   };
   
   // Функция для обработки монтирования редактора
@@ -82,35 +136,78 @@ export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
     console.log('Редактор инициализирован, сохраняем ссылку');
     editorRef.current = editor;
     
-    // Если есть путь для фокуса и редактор готов, найдем позицию и переместим курсор
-    if (focusPath && editor) {
-      console.log('Обработка пути при монтировании редактора:', focusPath);
-      const positionData = findPositionByPath(editorValue, focusPath);
-      console.log('Найдена позиция при монтировании:', positionData);
-      
-      if (positionData) {
-        // Увеличиваем задержку для уверенности, что редактор полностью загружен
-        setTimeout(() => {
-          console.log('Устанавливаем позицию при монтировании:', positionData);
-          try {
-            // Создаем объект позиции через простой объект
-            editor.revealLineInCenter(positionData.lineNumber);
-            editor.setPosition({
-              lineNumber: positionData.lineNumber,
-              column: positionData.column
-            });
-            editor.focus();
-          } catch (err) {
-            console.error('Ошибка при установке позиции в handleEditorDidMount:', err);
-          }
-        }, 500);
-      } else {
-        console.log('Не удалось найти позицию при монтировании для пути:', focusPath);
+    // Сохраняем ссылку на monaco глобально для доступа из других мест
+    window.monaco = monaco;
+    
+    // Убедимся, что у нас есть актуальные данные JSON в редакторе
+    if (data && typeof data === 'object') {
+      try {
+        // Форматируем JSON и устанавливаем его в редактор
+        const jsonStr = JSON.stringify(data, null, 2);
+        console.log('Устанавливаем JSON при монтировании редактора');
+        setEditorValue(jsonStr);
+        editor.setValue(jsonStr);
+        
+        // Теперь, если есть путь для фокуса, найдем позицию и переместим курсор
+        if (focusPath) {
+          console.log('Обработка пути при монтировании редактора:', focusPath);
+          
+          // Задержка, чтобы контент успел обновиться в редакторе
+          setTimeout(() => {
+            const currentContent = editor.getValue();
+            const positionData = findPositionByPath(currentContent, focusPath);
+            console.log('Найдена позиция при монтировании:', positionData);
+            
+            if (positionData) {
+              // Увеличиваем задержку для уверенности, что редактор полностью загружен
+              setTimeout(() => {
+                console.log('Устанавливаем позицию при монтировании:', positionData);
+                try {
+                  // Перемещаем курсор и показываем соответствующую строку
+                  editor.revealLineInCenter(positionData.lineNumber);
+                  editor.setPosition({
+                    lineNumber: positionData.lineNumber,
+                    column: positionData.column
+                  });
+                  editor.focus();
+                  
+                  // Добавляем декорацию для выделения найденной строки
+                  const decorations = editor.deltaDecorations([], [
+                    {
+                      range: new monaco.Range(
+                        positionData.lineNumber,
+                        1,
+                        positionData.lineNumber,
+                        1000
+                      ),
+                      options: {
+                        isWholeLine: true,
+                        className: 'highlighted-line',
+                        glyphMarginClassName: 'highlighted-glyph'
+                      }
+                    }
+                  ]);
+                  
+                  // Через некоторое время убираем выделение
+                  setTimeout(() => {
+                    editor.deltaDecorations(decorations, []);
+                  }, 3000);
+                } catch (err) {
+                  console.error('Ошибка при установке позиции в handleEditorDidMount:', err);
+                }
+              }, 800); // Увеличиваем задержку для уверенности
+            } else {
+              console.log('Не удалось найти позицию при монтировании для пути:', focusPath);
+            }
+          }, 100);
+        }
+      } catch (err) {
+        console.error('Ошибка при установке JSON в редактор:', err);
       }
     }
   };
 
-  // Initialize editor with formatted JSON
+  // Initialize editor with formatted JSON and handle focus path changes
   useEffect(() => {
     if (!data || typeof data !== 'object') {
       setError("Некорректные данные JSON");
@@ -123,30 +220,72 @@ export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
       setEditorValue(jsonStr);
       setError(null);
       
-      // Если редактор уже смонтирован и есть путь для фокуса
-      if (editorRef.current && focusPath) {
-        console.log('Поиск позиции для пути:', focusPath);
-        const position = findPositionByPath(jsonStr, focusPath);
-        console.log('Найдена позиция:', position);
+      // Если редактор уже смонтирован, обновляем его содержимое
+      if (editorRef.current) {
+        // Получаем текущее значение из редактора 
+        const currentValue = editorRef.current.getValue();
         
-        if (position) {
-          // Увеличиваем задержку для уверенности, что редактор полностью загружен
+        // Обновляем редактор только если значение изменилось
+        if (jsonStr !== currentValue) {
+          console.log('Обновляем значение редактора');
+          editorRef.current.setValue(jsonStr);
+        }
+        
+        // Если есть путь для фокуса, найдем и позиционируем курсор
+        if (focusPath) {
+          console.log('Поиск позиции для пути в useEffect:', focusPath);
+          
+          // Небольшая задержка для обновления редактора
           setTimeout(() => {
-            console.log('Устанавливаем позицию в редакторе:', position);
-            try {
-              editorRef.current.revealLineInCenter(position.lineNumber);
-              // Используем координаты для создания объекта IPosition вместо передачи объекта напрямую
-              editorRef.current.setPosition({
-                lineNumber: position.lineNumber,
-                column: position.column
-              });
-              editorRef.current.focus();
-            } catch (err) {
-              console.error('Ошибка при установке позиции:', err);
+            const freshContent = editorRef.current.getValue();
+            const position = findPositionByPath(freshContent, focusPath);
+            console.log('Найдена позиция в useEffect:', position);
+            
+            if (position) {
+              // Увеличиваем задержку для уверенности, что редактор полностью загружен
+              setTimeout(() => {
+                console.log('Устанавливаем позицию в редакторе из useEffect:', position);
+                try {
+                  // Выделяем строку в редакторе
+                  editorRef.current.revealLineInCenter(position.lineNumber);
+                  editorRef.current.setPosition({
+                    lineNumber: position.lineNumber,
+                    column: position.column
+                  });
+                  editorRef.current.focus();
+                  
+                  // Мигаем выделением строки
+                  if (window.monaco) {
+                    const monaco = window.monaco;
+                    const decorations = editorRef.current.deltaDecorations([], [
+                      {
+                        range: new monaco.Range(
+                          position.lineNumber,
+                          1,
+                          position.lineNumber,
+                          1000
+                        ),
+                        options: {
+                          isWholeLine: true,
+                          className: 'highlighted-line',
+                          glyphMarginClassName: 'highlighted-glyph'
+                        }
+                      }
+                    ]);
+                    
+                    // Через некоторое время убираем выделение
+                    setTimeout(() => {
+                      editorRef.current.deltaDecorations(decorations, []);
+                    }, 3000);
+                  }
+                } catch (err) {
+                  console.error('Ошибка при установке позиции:', err);
+                }
+              }, 300);
+            } else {
+              console.log('Не удалось найти позицию для пути в useEffect:', focusPath);
             }
-          }, 500); // Увеличиваем задержку
-        } else {
-          console.log('Не удалось найти позицию для пути:', focusPath);
+          }, 100);
         }
       }
     } catch (err) {
