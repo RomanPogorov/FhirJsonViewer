@@ -224,6 +224,19 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
   // State to track expanded value items
   const [expandedValues, setExpandedValues] = useState<Set<string>>(new Set());
   
+  // State for window width
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1024);
+  
+  // Effect for window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   // Toggle value expansion
   const toggleValueExpansion = (path: string) => {
     setExpandedValues(prev => {
@@ -237,11 +250,40 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
     });
   };
   
+  // Update expandedRows when expandAll changes
+  useEffect(() => {
+    if (expandAll) {
+      // Add all keys to expanded set
+      const allKeys = Object.keys(getVisibleRows());
+      setExpandedRows(new Set(allKeys));
+    } else {
+      // Clear the set
+      setExpandedRows(new Set());
+    }
+  }, [expandAll, data]);
+  
+  const visibleRows = getVisibleRows();
+  
+  // Calculate the optimal number of items to show based on viewport size
+  const getOptimalDisplayCount = (values: FlattenedValue[]): number => {
+    if (values.length <= 5) return values.length;
+    
+    // Для широких экранов показываем больше элементов
+    if (windowWidth > 1200) {
+      return Math.min(values.length, 10);
+    } else if (windowWidth > 768) {
+      return Math.min(values.length, 7);
+    } else {
+      return Math.min(values.length, 5);
+    }
+  };
+  
   // Render a single row with key and all its values
   const renderRow = (key: string, values: FlattenedValue[]) => {
     const isExpanded = expandedRows.has(key) || expandAll;
-    const hasMoreThan5 = values.length > 5;
-    const displayValues = isExpanded ? values : values.slice(0, 5);
+    const optimalDisplayCount = getOptimalDisplayCount(values);
+    const hasMoreThanOptimal = values.length > optimalDisplayCount;
+    const displayValues = isExpanded ? values : values.slice(0, optimalDisplayCount);
     
     return (
       <div key={key} className="border-b border-gray-200 px-3 py-3 hover:bg-gray-50">
@@ -254,7 +296,7 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
           {/* Values column with relative positioning for gradient overlay */}
           <div className="flex-grow relative">
             {/* Gradient overlay - visible only when not expanded */}
-            {hasMoreThan5 && !isExpanded && (
+            {hasMoreThanOptimal && !isExpanded && (
               <div 
                 className="absolute right-0 top-0 bottom-0 w-20 pointer-events-none z-10" 
                 style={{ 
@@ -263,8 +305,8 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
               </div>
             )}
             
-            {/* Show more/less button - always visible at the right edge */}
-            {hasMoreThan5 && (
+            {/* Show more/less button - always visible at the right edge when needed */}
+            {hasMoreThanOptimal && (
               <div className="absolute right-0 top-1/2 -translate-y-1/2 z-20 px-1">
                 <Button
                   variant="default"
@@ -272,13 +314,13 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
                   className="text-xs bg-[#18273F] text-white px-2 py-1 rounded hover:bg-[#18273F]/90"
                   onClick={() => toggleRowExpansion(key)}
                 >
-                  {isExpanded ? 'Скрыть' : `+${values.length - 5}`}
+                  {isExpanded ? 'Скрыть' : `+${values.length - optimalDisplayCount}`}
                 </Button>
               </div>
             )}
             
             {/* Values flex container with right padding for button */}
-            <div className={`flex flex-wrap gap-2 ${hasMoreThan5 ? 'pr-16' : ''}`}>
+            <div className={`flex flex-wrap gap-2 ${hasMoreThanOptimal ? 'pr-16' : ''}`}>
               {displayValues.map((item, i) => {
                 const valueStr = typeof item.value === 'object' 
                   ? (Array.isArray(item.value) ? '[Array]' : '[Object]') 
@@ -336,20 +378,6 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
       </div>
     );
   };
-  
-  // Update expandedRows when expandAll changes
-  useEffect(() => {
-    if (expandAll) {
-      // Add all keys to expanded set
-      const allKeys = Object.keys(getVisibleRows());
-      setExpandedRows(new Set(allKeys));
-    } else {
-      // Clear the set
-      setExpandedRows(new Set());
-    }
-  }, [expandAll, data]);
-  
-  const visibleRows = getVisibleRows();
   
   return (
     <>
