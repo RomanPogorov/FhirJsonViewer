@@ -17,7 +17,7 @@ export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
   const editorRef = useRef<any>(null);
 
   // Функция для нахождения позиции элемента в текстовом JSON по пути
-  const findPositionByPath = (jsonStr: string, path: string): { startLineNumber: number, startColumn: number } | null => {
+  const findPositionByPath = (jsonStr: string, path: string): { lineNumber: number, column: number } | null => {
     // Преобразуем путь в массив ключей и индексов
     const pathParts = path.split(/\.|\[|\]/).filter(part => part !== '');
     
@@ -67,8 +67,8 @@ export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
         
         if (match) {
           return {
-            startLineNumber: i + 1, // Номера строк в Monaco начинаются с 1
-            startColumn: match.index! + 1 // Номера колонок тоже начинаются с 1
+            lineNumber: i + 1, // Номера строк в Monaco начинаются с 1
+            column: match.index! + 1 // Номера колонок тоже начинаются с 1
           };
         }
       }
@@ -78,18 +78,34 @@ export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
   };
   
   // Функция для обработки монтирования редактора
-  const handleEditorDidMount = (editor: any) => {
+  const handleEditorDidMount = (editor: any, monaco: any) => {
+    console.log('Редактор инициализирован, сохраняем ссылку');
     editorRef.current = editor;
     
     // Если есть путь для фокуса и редактор готов, найдем позицию и переместим курсор
     if (focusPath && editor) {
-      const position = findPositionByPath(editorValue, focusPath);
-      if (position) {
+      console.log('Обработка пути при монтировании редактора:', focusPath);
+      const positionData = findPositionByPath(editorValue, focusPath);
+      console.log('Найдена позиция при монтировании:', positionData);
+      
+      if (positionData) {
+        // Увеличиваем задержку для уверенности, что редактор полностью загружен
         setTimeout(() => {
-          editor.revealLineInCenter(position.startLineNumber);
-          editor.setPosition(position);
-          editor.focus();
-        }, 100);
+          console.log('Устанавливаем позицию при монтировании:', positionData);
+          try {
+            // Создаем объект позиции через простой объект
+            editor.revealLineInCenter(positionData.lineNumber);
+            editor.setPosition({
+              lineNumber: positionData.lineNumber,
+              column: positionData.column
+            });
+            editor.focus();
+          } catch (err) {
+            console.error('Ошибка при установке позиции в handleEditorDidMount:', err);
+          }
+        }, 500);
+      } else {
+        console.log('Не удалось найти позицию при монтировании для пути:', focusPath);
       }
     }
   };
@@ -109,13 +125,28 @@ export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
       
       // Если редактор уже смонтирован и есть путь для фокуса
       if (editorRef.current && focusPath) {
+        console.log('Поиск позиции для пути:', focusPath);
         const position = findPositionByPath(jsonStr, focusPath);
+        console.log('Найдена позиция:', position);
+        
         if (position) {
+          // Увеличиваем задержку для уверенности, что редактор полностью загружен
           setTimeout(() => {
-            editorRef.current.revealLineInCenter(position.startLineNumber);
-            editorRef.current.setPosition(position);
-            editorRef.current.focus();
-          }, 100);
+            console.log('Устанавливаем позицию в редакторе:', position);
+            try {
+              editorRef.current.revealLineInCenter(position.lineNumber);
+              // Используем координаты для создания объекта IPosition вместо передачи объекта напрямую
+              editorRef.current.setPosition({
+                lineNumber: position.lineNumber,
+                column: position.column
+              });
+              editorRef.current.focus();
+            } catch (err) {
+              console.error('Ошибка при установке позиции:', err);
+            }
+          }, 500); // Увеличиваем задержку
+        } else {
+          console.log('Не удалось найти позицию для пути:', focusPath);
         }
       }
     } catch (err) {
