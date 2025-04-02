@@ -12,7 +12,9 @@ export default function Home() {
   const [viewType, setViewType] = useState<"view" | "edit">("view");
   const [jsonData, setJsonData] = useState<FhirJson>(sampleFhirData);
   const [showSample, setShowSample] = useState(true);
+  const [focusPath, setFocusPath] = useState<string | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   
   // Handle file upload
@@ -66,6 +68,27 @@ export default function Home() {
     setJsonData(updatedJson);
     // Switch back to view mode after successful update
     setViewType("view");
+    // Сброс пути фокуса после редактирования
+    setFocusPath(undefined);
+  };
+  
+  // Функция для перехода к редактированию конкретного поля
+  const handleEditField = (path: string) => {
+    setFocusPath(path);
+    setViewType("edit");
+    
+    // Программно активируем вкладку редактирования, если требуется
+    if (tabsRef.current) {
+      const editTab = tabsRef.current.querySelector('[data-state="inactive"][value="edit"]');
+      if (editTab && editTab instanceof HTMLElement) {
+        editTab.click();
+      }
+    }
+    
+    toast({
+      title: "Переход к редактированию",
+      description: `Редактирование поля: ${path}`,
+    });
   };
   
   return (
@@ -107,16 +130,29 @@ export default function Home() {
         </div>
         
         {/* View Type Selector */}
-        <Tabs defaultValue="view" className="mb-6" onValueChange={(value) => setViewType(value as "view" | "edit")}>
+        <Tabs 
+          defaultValue="view" 
+          className="mb-6" 
+          value={viewType}
+          onValueChange={(value) => setViewType(value as "view" | "edit")}
+          ref={tabsRef}
+        >
           <TabsList className="grid w-[400px] grid-cols-2 mb-4">
             <TabsTrigger value="view">Просмотр</TabsTrigger>
             <TabsTrigger value="edit">Редактирование</TabsTrigger>
           </TabsList>
           <TabsContent value="view">
-            <FlatJsonViewer data={jsonData} />
+            <FlatJsonViewer 
+              data={jsonData} 
+              onEdit={handleEditField}
+            />
           </TabsContent>
           <TabsContent value="edit">
-            <JsonEditor data={jsonData} onUpdateJson={handleJsonUpdate} />
+            <JsonEditor 
+              data={jsonData} 
+              onUpdateJson={handleJsonUpdate} 
+              focusPath={focusPath}
+            />
           </TabsContent>
         </Tabs>
       </div>

@@ -18,7 +18,12 @@ interface FlattenedValue {
   path: string;
 }
 
-export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
+interface FlatJsonViewerProps {
+  data: FhirJson;
+  onEdit?: (path: string) => void;
+}
+
+export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
   const [showOnlyExtensions, setShowOnlyExtensions] = useState(false);
   const [enableEdit, setEnableEdit] = useState(false);
   const [expandAll, setExpandAll] = useState(false);
@@ -279,7 +284,16 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
                   
                   {/* Edit icon (only visible when edit mode is enabled) */}
                   {enableEdit && (
-                    <span className="ml-1 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <span 
+                      className="ml-1 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Предотвращает переключение видимости элемента
+                        if (onEdit) {
+                          onEdit(item.path);
+                        }
+                      }}
+                      title={`Редактировать ${item.path}`}
+                    >
                       <svg 
                         xmlns="http://www.w3.org/2000/svg" 
                         viewBox="0 0 20 20" 

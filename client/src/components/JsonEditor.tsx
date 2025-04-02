@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Editor from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -7,12 +7,92 @@ import { FhirJson } from "@/types/fhir";
 interface JsonEditorProps {
   data: FhirJson;
   onUpdateJson: (json: FhirJson) => void;
+  focusPath?: string; // Путь к элементу, на котором нужно сфокусироваться
 }
 
-export function JsonEditor({ data, onUpdateJson }: JsonEditorProps) {
+export function JsonEditor({ data, onUpdateJson, focusPath }: JsonEditorProps) {
   const [editorValue, setEditorValue] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const editorRef = useRef<any>(null);
+
+  // Функция для нахождения позиции элемента в текстовом JSON по пути
+  const findPositionByPath = (jsonStr: string, path: string): { startLineNumber: number, startColumn: number } | null => {
+    // Преобразуем путь в массив ключей и индексов
+    const pathParts = path.split(/\.|\[|\]/).filter(part => part !== '');
+    
+    if (pathParts.length === 0) return null;
+    
+    // Базовые шаблоны поиска для различных частей пути
+    const patterns: string[] = [];
+    let currentPath = '';
+    
+    for (let i = 0; i < pathParts.length; i++) {
+      const part = pathParts[i];
+      
+      // Если текущая часть пути - число, значит это индекс массива
+      if (!isNaN(Number(part))) {
+        // Не добавляем его в шаблон отдельно, так как он уже учтен в предыдущей части с [индекс]
+        continue;
+      }
+      
+      // Обновляем текущий путь
+      if (currentPath) {
+        // Проверяем, следующая часть - индекс или ключ
+        const nextPart = pathParts[i + 1];
+        
+        if (nextPart && !isNaN(Number(nextPart))) {
+          // Если следующая часть - индекс, добавляем её в квадратных скобках
+          currentPath += `.${part}[${nextPart}]`;
+          i++; // Пропускаем следующую часть, так как мы уже её учли
+        } else {
+          currentPath += `.${part}`;
+        }
+      } else {
+        currentPath = part;
+      }
+      
+      // Добавляем шаблон для поиска текущей части пути
+      patterns.push(`"${part}"\\s*:`);
+    }
+    
+    // Поиск позиции последнего шаблона в JSON-строке
+    if (patterns.length > 0) {
+      const lastPattern = patterns[patterns.length - 1];
+      const lines = jsonStr.split('\n');
+      
+      for (let i = 0; i < lines.length; i++) {
+        const lineContent = lines[i];
+        const match = lineContent.match(lastPattern);
+        
+        if (match) {
+          return {
+            startLineNumber: i + 1, // Номера строк в Monaco начинаются с 1
+            startColumn: match.index! + 1 // Номера колонок тоже начинаются с 1
+          };
+        }
+      }
+    }
+    
+    return null;
+  };
+  
+  // Функция для обработки монтирования редактора
+  const handleEditorDidMount = (editor: any) => {
+    editorRef.current = editor;
+    
+    // Если есть путь для фокуса и редактор готов, найдем позицию и переместим курсор
+    if (focusPath && editor) {
+      const position = findPositionByPath(editorValue, focusPath);
+      if (position) {
+        setTimeout(() => {
+          editor.revealLineInCenter(position.startLineNumber);
+          editor.setPosition(position);
+          editor.focus();
+        }, 100);
+      }
+    }
+  };
 
   // Initialize editor with formatted JSON
   useEffect(() => {
@@ -26,11 +106,23 @@ export function JsonEditor({ data, onUpdateJson }: JsonEditorProps) {
       console.log("Updating editor value:", jsonStr.slice(0, 100) + "...");
       setEditorValue(jsonStr);
       setError(null);
+      
+      // Если редактор уже смонтирован и есть путь для фокуса
+      if (editorRef.current && focusPath) {
+        const position = findPositionByPath(jsonStr, focusPath);
+        if (position) {
+          setTimeout(() => {
+            editorRef.current.revealLineInCenter(position.startLineNumber);
+            editorRef.current.setPosition(position);
+            editorRef.current.focus();
+          }, 100);
+        }
+      }
     } catch (err) {
       console.error("JSON stringify error:", err);
       setError("Невозможно отформатировать JSON: " + (err as Error).message);
     }
-  }, [data]);
+  }, [data, focusPath]);
 
   // Handle editor changes
   const handleEditorChange = (value: string | undefined) => {
@@ -119,6 +211,7 @@ export function JsonEditor({ data, onUpdateJson }: JsonEditorProps) {
           defaultValue={editorValue}
           value={editorValue}
           onChange={handleEditorChange}
+          onMount={handleEditorDidMount}
           options={{
             minimap: { enabled: false },
             formatOnPaste: true,
