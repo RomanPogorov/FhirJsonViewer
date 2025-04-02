@@ -27,7 +27,12 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
   
   // Function to determine if a key/path is related to extensions
   const isExtensionPath = (key: string, path: string): boolean => {
-    return key === 'extension' || path.includes('extension') || path.includes('Extension');
+    // Проверяем более точно, чтобы избежать ложных срабатываний
+    // Ищем точное совпадение 'extension' как ключ или часть пути в формате .extension или [extension]
+    return key === 'extension' || 
+           path === 'extension' || 
+           path.match(/\.extension(\.|$|\[)/) !== null || 
+           path.match(/\.extension\[\d+\]/) !== null;
   };
   
   // Extract primitive values from nested objects and arrays
@@ -201,9 +206,11 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
       
       for (const key in flattened) {
         const values = flattened[key];
-        const hasExtension = values.some(v => v.isExtension);
-        if (hasExtension || key === 'extension') {
-          filtered[key] = values;
+        const extensionValues = values.filter(v => v.isExtension);
+        
+        // Если есть extension элементы, добавляем их в отфильтрованный список
+        if (extensionValues.length > 0 || key === 'extension') {
+          filtered[key] = extensionValues.length > 0 ? extensionValues : values;
         }
       }
       
