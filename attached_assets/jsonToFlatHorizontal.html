@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FHIR JSON Viewer</title>
+    <style>
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          Roboto,
+          Oxygen,
+          Ubuntu,
+          Cantarell,
+          "Open Sans",
+          "Helvetica Neue",
+          sans-serif;
+        font-size: 13px;
+        margin: 20px;
+        background-color: #f9f9f9;
+      }
+      .container {
+        max-width: 100%;
+        margin: auto;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 0 10px rgba(21, 21, 21, 0.1);
+        overflow-x: auto;
+      }
+      .controls {
+        margin-bottom: 15px;
+      }
+      .json-row {
+        display: flex;
+        flex-direction: row;
+        gap: 5px;
+        border-bottom: 1px solid #ddd;
+        border-radius: 0px;
+        padding: 8px;
+        margin: 4px 0;
+        flex-wrap: nowrap;
+        white-space: nowrap;
+        align-items: flex-start;
+        overflow: visible;
+        position: relative;
+      }
+      .json-key {
+        font-weight: normal;
+        color: #666666;
+        width: 120px;
+        text-align: left;
+        padding: 5px 0;
+        flex-shrink: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        position: relative;
+        cursor: pointer;
+      }
+      .json-key.nested-key {
+        width: auto;
+      }
+
+      .json-key:hover::after {
+        content: attr(data-full);
+        position: absolute;
+        top: 100%;
+        left: 0;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 6px 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        white-space: nowrap;
+        z-index: 10;
+        min-width: 50px;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .json-value,
+      .flattened-values span {
+        background: #efefef;
+        padding: 2px 8px;
+        border-radius: 6px;
+        display: inline-block;
+        position: relative;
+        max-width: 120px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+      }
+
+      /* Добавим новый класс для редактируемых элементов */
+      .editable.json-value:hover,
+      .editable.flattened-values span:hover {
+        padding-right: 20px;
+      }
+
+      .json-value.expanded {
+        max-width: none;
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        background: #d3d3d3;
+      }
+      .nested {
+        display: flex;
+        gap: 10px;
+        margin-left: 10px;
+      }
+      .tooltip {
+        display: none;
+        position: fixed;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        white-space: nowrap;
+        z-index: 1000;
+        min-width: 50px;
+        max-width: 300px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        pointer-events: none;
+      }
+      .json-value:hover .tooltip {
+        display: block;
+        transform: translateY(5px);
+      }
+      .hidden-nested {
+        display: none;
+      }
+      .flattened-values {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 5px;
+        max-width: calc(100% - 120px);
+        overflow: hidden;
+        position: relative;
+        flex-grow: 1;
+      }
+      .flattened-values.expanded {
+        max-width: none;
+        overflow: visible;
+        flex-wrap: wrap;
+      }
+      .toggle-more {
+        background: #000;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 6px 12px;
+        cursor: pointer;
+        margin-left: auto;
+        white-space: nowrap;
+        flex-shrink: 0;
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+      .toggle-more:hover {
+        background: #d3d3d3;
+      }
+      .flattened-values span:hover::after {
+        content: "";
+        position: absolute;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 12px;
+        height: 12px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        opacity: 0.5;
+      }
+      .flattened-values span:hover::after:hover {
+        opacity: 1;
+      }
+      /* Обновим стили для иконки редактирования */
+      .json-value::after,
+      .flattened-values span::after {
+        content: "";
+        position: absolute;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 12px;
+        height: 12px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        opacity: 0;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: none; /* По умолчанию скрываем иконку */
+      }
+
+      /* Показываем иконку только для редактируемых элементов */
+      .editable.json-value:hover::after,
+      .editable.flattened-values span:hover::after {
+        display: block;
+        opacity: 0.5;
+      }
+
+      /* Синяя иконка при наведении на правую часть элемента */
+      .json-value:hover:has(:hover)::after,
+      .flattened-values span:hover:has(:hover)::after,
+      .json-value:hover:active::after,
+      .flattened-values span:hover:active::after {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231890ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'%3E%3C/path%3E%3C/svg%3E");
+        opacity: 1;
+      }
+
+      /* Добавляем интерактивную область для иконки */
+      .json-value::before,
+      .flattened-values span::before {
+        content: "";
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 20px;
+        height: 100%;
+        cursor: pointer;
+      }
+
+      .json-value:hover {
+        cursor: pointer;
+      }
+      .json-value.extension {
+        background: #fff5f1; /* Светло-голубой фон */
+        border: 1px solid #ffb192;
+      }
+      .json-key.extension {
+        color: #bf441e; /* Синий цвет текста */
+      }
+      .json-row.extension {
+      }
+      .json-value:active::after,
+      .flattened-values span:active::after {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231890ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'%3E%3C/path%3E%3C/svg%3E");
+        opacity: 1;
+      }
+
+      /* Стили для иконки-контейнера */
+      .edit-icon {
+        position: absolute;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 12px;
+        height: 12px;
+        cursor: pointer;
+        opacity: 0;
+        transition: all 0.3s ease;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23000000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+      }
+
+      /* Показываем иконку при наведении на родительский элемент */
+      .json-value:hover .edit-icon,
+      .flattened-values span:hover .edit-icon {
+        opacity: 0.5;
+      }
+
+      /* Синий цвет при наведении на саму иконку */
+      .edit-icon:hover {
+        opacity: 1 !important;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%231890ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z'%3E%3C/path%3E%3C/svg%3E");
+      }
+
+      /* Тултип для иконки */
+      .edit-tooltip {
+        display: none;
+        position: fixed;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 4px 8px;
+        font-size: 12px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        pointer-events: none;
+      }
+
+      .edit-icon:hover .edit-tooltip {
+        display: block;
+      }
+
+      /* Стили для свитчера */
+      .switch {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        cursor: pointer;
+      }
+
+      .switch input {
+        display: none;
+      }
+
+      .slider {
+        position: relative;
+        display: inline-block;
+        width: 40px;
+        height: 20px;
+        background-color: #ccc;
+        border-radius: 20px;
+        transition: 0.4s;
+        margin-right: 8px;
+      }
+
+      .slider:before {
+        position: absolute;
+        content: "";
+        height: 16px;
+        width: 16px;
+        left: 2px;
+        bottom: 2px;
+        background-color: white;
+        border-radius: 50%;
+        transition: 0.4s;
+      }
+
+      .switch input:checked + .slider {
+        background-color: #000;
+      }
+
+      .switch input:checked + .slider:before {
+        transform: translateX(20px);
+      }
+
+      .switch-label {
+        font-size: 13px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>FHIR JSON Viewer</h2>
+      <div class="controls">
+        <div
+          style="
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            justify-content: space-between;
+          "
+        >
+          <div style="display: flex; align-items: center; gap: 20px">
+            <label>
+              <input type="checkbox" id="showOnlyExtensions" /> Показать только
+              extensions
+            </label>
+            <label>
+              <input type="checkbox" id="enableEdit" /> Показать редактирование
+            </label>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="expandSwitch" />
+            <span class="slider"></span>
+            <span class="switch-label">Развернуть все</span>
+          </label>
+        </div>
+      </div>
+      <div id="jsonViewer"></div>
+    </div>
+
+    <script>
+      const fhirData = {
+        address: [
+          {
+            city: "Lincoln",
+            line: ["677 Cartwright Stravenue Suite 69"],
+            state: "MA",
+            country: "US",
+            extension: [
+              {
+                url: "http://hl7.org/fhir/StructureDefinition/geolocation",
+                extension: [
+                  {
+                    url: "latitude",
+                    valueDecimal: 42.443301553712516,
+                  },
+                  {
+                    url: "longitude",
+                    valueDecimal: -71.27315524289966,
+                  },
+                ],
+              },
+            ],
+            postalCode: "00000",
+          },
+        ],
+        birthDate: "1957-09-12",
+        communication: [
+          {
+            language: {
+              text: "English",
+              coding: [
+                {
+                  code: "en-US",
+                  system: "urn:ietf:bcp:47",
+                  display: "English",
+                },
+              ],
+            },
+          },
+        ],
+        deceasedDateTime: "2019-12-08T09:28:50+00:00",
+        extension: [
+          {
+            url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-race",
+            extension: [
+              {
+                url: "ombCategory",
+                valueCoding: {
+                  code: "2106-3",
+                  system: "urn:oid:2.16.840.1.113883.6.238",
+                  display: "White",
+                },
+              },
+              {
+                url: "text",
+                valueString: "White",
+              },
+            ],
+          },
+          {
+            url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-ethnicity",
+            extension: [
+              {
+                url: "ombCategory",
+                valueCoding: {
+                  code: "2186-5",
+                  system: "urn:oid:2.16.840.1.113883.6.238",
+                  display: "Not Hispanic or Latino",
+                },
+              },
+              {
+                url: "text",
+                valueString: "Not Hispanic or Latino",
+              },
+            ],
+          },
+          {
+            url: "http://hl7.org/fhir/StructureDefinition/patient-mothersMaidenName",
+            valueString: "Kyle Yundt",
+          },
+          {
+            url: "http://hl7.org/fhir/us/core/StructureDefinition/us-core-birthsex",
+            valueCode: "F",
+          },
+          {
+            url: "http://hl7.org/fhir/StructureDefinition/patient-birthPlace",
+            valueAddress: {
+              city: "Plainville",
+              state: "Massachusetts",
+              country: "US",
+            },
+          },
+          {
+            url: "http://synthetichealth.github.io/synthea/disability-adjusted-life-years",
+            valueDecimal: 1.070931535453531,
+          },
+          {
+            url: "http://synthetichealth.github.io/synthea/quality-adjusted-life-years",
+            valueDecimal: 59.92906846454647,
+          },
+        ],
+        gender: "female",
+        id: "04fa9220-931b-6504-1444-5523f8f25710",
+        identifier: [
+          {
+            value: "04fa9220-931b-6504-1444-5523f8f25710",
+            system: "https://github.com/synthetichealth/synthea",
+          },
+          {
+            type: {
+              text: "Medical Record Number",
+              coding: [
+                {
+                  code: "MR",
+                  system: "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  display: "Medical Record Number",
+                },
+              ],
+            },
+            value: "04fa9220-931b-6504-1444-5523f8f25710",
+            system: "http://hospital.smarthealthit.org",
+          },
+          {
+            type: {
+              text: "Social Security Number",
+              coding: [
+                {
+                  code: "SS",
+                  system: "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  display: "Social Security Number",
+                },
+              ],
+            },
+            value: "999-16-8331",
+            system: "http://hl7.org/fhir/sid/us-ssn",
+          },
+          {
+            type: {
+              text: "Driver's License",
+              coding: [
+                {
+                  code: "DL",
+                  system: "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  display: "Driver's License",
+                },
+              ],
+            },
+            value: "S99910018",
+            system: "urn:oid:2.16.840.1.113883.4.3.25",
+          },
+          {
+            type: {
+              text: "Passport Number",
+              coding: [
+                {
+                  code: "PPN",
+                  system: "http://terminology.hl7.org/CodeSystem/v2-0203",
+                  display: "Passport Number",
+                },
+              ],
+            },
+            value: "X35289037X",
+            system:
+              "http://standardhealthrecord.org/fhir/StructureDefinition/passportNumber",
+          },
+        ],
+        maritalStatus: {
+          text: "S",
+          coding: [
+            {
+              code: "S",
+              system: "http://terminology.hl7.org/CodeSystem/v3-MaritalStatus",
+              display: "S",
+            },
+          ],
+        },
+        meta: {
+          profile: [
+            "http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient",
+          ],
+          lastUpdated: "2025-03-02T08:56:52.752401Z",
+          versionId: "197",
+          extension: [
+            {
+              url: "https://fhir.aidbox.app/fhir/StructureDefinition/created-at",
+              valueInstant: "2025-03-02T08:56:52.752401Z",
+            },
+          ],
+        },
+        multipleBirthBoolean: false,
+        name: [
+          {
+            use: "official",
+            given: ["Dorthey", "Aide"],
+            family: "Eichmann",
+            prefix: ["Ms."],
+          },
+        ],
+        resourceType: "Patient",
+        telecom: [
+          {
+            use: "home",
+            value: "555-282-8307",
+            system: "phone",
+          },
+        ],
+        text: {
+          div: '<div xmlns="http://www.w3.org/1999/xhtml">Generated by <a href="https://github.com/synthetichealth/synthea">Synthea</a>.Version identifier: synthea-java .   Person seed: -6115307448598016483  Population seed: 123123123</div>',
+          status: "generated",
+        },
+      };
+
+      function flattenObject(obj, path = []) {
+        let result = [];
+        function recurse(curr, currentPath) {
+          if (typeof curr === "object" && curr !== null) {
+            if (Array.isArray(curr)) {
+              curr.forEach((item) => recurse(item, currentPath));
+            } else {
+              for (let key in curr) {
+                recurse(curr[key], [...currentPath, key]);
+              }
+            }
+          } else {
+            result.push({ value: curr, path: currentPath });
+          }
+        }
+        recurse(obj, path);
+        return result;
+      }
+
+      function hasExtension(value) {
+        if (typeof value === "object" && value !== null) {
+          if (Array.isArray(value)) {
+            return value.some((item) => hasExtension(item));
+          } else {
+            return Object.keys(value).some(
+              (key) => key === "extension" || hasExtension(value[key])
+            );
+          }
+        }
+        return false;
+      }
+
+      function createJsonElement(key, value, path = [], level = 1) {
+        const showOnlyExtensions =
+          document.getElementById("showOnlyExtensions").checked;
+
+        if (showOnlyExtensions && !isExtensionOrParent(value, key)) {
+          return null;
+        }
+
+        let element = document.createElement("div");
+        element.classList.add("json-row");
+
+        if (path.includes("extension") || key === "extension") {
+          element.classList.add("extension");
+        }
+
+        let keySpan = document.createElement("span");
+        keySpan.classList.add("json-key");
+        keySpan.textContent = key + ":";
+        keySpan.setAttribute("data-full", key + ":");
+        keySpan.style.marginRight = "5px";
+        keySpan.style.flexShrink = "0";
+
+        if (typeof value === "object" && value !== null) {
+          let flattenedValues = flattenObject(value, [...path, key]);
+          let flattenedContainer = document.createElement("div");
+          flattenedContainer.classList.add("flattened-values");
+
+          let toggleButton = document.createElement("button");
+          toggleButton.classList.add("toggle-more");
+          toggleButton.textContent = "Show more";
+          toggleButton.style.display =
+            flattenedValues.length > 3 ? "block" : "none";
+
+          toggleButton.addEventListener("click", function (event) {
+            event.stopPropagation();
+            flattenedContainer.classList.toggle("expanded");
+            toggleButton.textContent = flattenedContainer.classList.contains(
+              "expanded"
+            )
+              ? "Show less"
+              : "Show more";
+            if (flattenedContainer.classList.contains("expanded")) {
+              element.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+          });
+
+          flattenedValues.forEach(({ value, path }) => {
+            if (showOnlyExtensions && !path.includes("extension")) {
+              return;
+            }
+
+            let valSpan = document.createElement("span");
+            valSpan.classList.add("json-value");
+            if (path.includes("extension")) {
+              valSpan.classList.add("extension");
+            }
+            valSpan.textContent = value;
+            valSpan.style.flexShrink = "0";
+
+            let tooltip = document.createElement("div");
+            tooltip.classList.add("tooltip");
+            tooltip.textContent = path.join(" → ");
+            document.body.appendChild(tooltip);
+
+            valSpan.addEventListener("click", function (event) {
+              event.stopPropagation();
+              valSpan.classList.toggle("expanded");
+            });
+
+            valSpan.addEventListener("mouseenter", function (e) {
+              let rect = valSpan.getBoundingClientRect();
+              tooltip.style.left = `${rect.left}px`;
+              tooltip.style.top = `${rect.bottom}px`;
+              tooltip.style.display = "block";
+            });
+
+            valSpan.addEventListener("mouseleave", function () {
+              tooltip.style.display = "none";
+            });
+
+            flattenedContainer.appendChild(valSpan);
+          });
+
+          element.appendChild(keySpan);
+          element.appendChild(flattenedContainer);
+          element.appendChild(toggleButton);
+        } else {
+          let valueSpan = document.createElement("span");
+          valueSpan.classList.add("json-value");
+          if (path.includes("extension")) {
+            valueSpan.classList.add("extension");
+          }
+          valueSpan.textContent = value;
+
+          // Добавляем иконку редактирования
+          let editIcon = document.createElement("span");
+          editIcon.classList.add("edit-icon");
+
+          // Добавляем тултип для иконки
+          let editTooltip = document.createElement("span");
+          editTooltip.classList.add("edit-tooltip");
+          editTooltip.textContent = "Редактировать";
+          editIcon.appendChild(editTooltip);
+
+          // Обработчики для тултипа иконки
+          editIcon.addEventListener("mouseenter", function (e) {
+            let rect = editIcon.getBoundingClientRect();
+            editTooltip.style.left = `${rect.left}px`;
+            editTooltip.style.top = `${rect.bottom + 5}px`;
+          });
+
+          valueSpan.appendChild(editIcon);
+
+          valueSpan.addEventListener("click", function (event) {
+            event.stopPropagation();
+            valueSpan.classList.toggle("expanded");
+          });
+
+          valueSpan.addEventListener("mouseenter", function () {
+            let tooltip = document.createElement("div");
+            tooltip.classList.add("tooltip");
+            tooltip.textContent = path.join(" → ");
+            valueSpan.appendChild(tooltip);
+          });
+
+          valueSpan.addEventListener("mouseleave", function () {
+            let tooltip = valueSpan.querySelector(".tooltip");
+            if (tooltip) {
+              tooltip.remove();
+            }
+          });
+
+          element.appendChild(keySpan);
+          element.appendChild(valueSpan);
+        }
+
+        return element;
+      }
+
+      function isExtensionOrParent(value, key) {
+        if (key === "extension") {
+          return true;
+        }
+        if (typeof value === "object" && value !== null) {
+          if (Array.isArray(value)) {
+            return value.some((item) => isExtensionOrParent(item, key));
+          } else {
+            return Object.keys(value).some((subKey) =>
+              isExtensionOrParent(value[subKey], subKey)
+            );
+          }
+        }
+        return false;
+      }
+
+      function expandAll() {
+        const containers = document.querySelectorAll(".flattened-values");
+        const buttons = document.querySelectorAll(".toggle-more");
+
+        containers.forEach((container, index) => {
+          container.classList.add("expanded");
+          if (buttons[index]) {
+            buttons[index].textContent = "Show less";
+          }
+        });
+      }
+
+      function collapseAll() {
+        const containers = document.querySelectorAll(".flattened-values");
+        const buttons = document.querySelectorAll(".toggle-more");
+
+        containers.forEach((container, index) => {
+          container.classList.remove("expanded");
+          if (buttons[index]) {
+            buttons[index].textContent = "Show more";
+          }
+        });
+      }
+
+      // Добавим функцию для обновления редактируемости элементов
+      function updateEditableState() {
+        const isEditable = document.getElementById("enableEdit").checked;
+        const elements = document.querySelectorAll(
+          ".json-value, .flattened-values span"
+        );
+
+        elements.forEach((element) => {
+          if (isEditable) {
+            element.classList.add("editable");
+          } else {
+            element.classList.remove("editable");
+          }
+        });
+      }
+
+      // Добавим обработчик события для чекбокса
+      document
+        .getElementById("enableEdit")
+        .addEventListener("change", updateEditableState);
+
+      // Обновим функцию renderJson, чтобы учитывать состояние редактируемости
+      function renderJson() {
+        const viewer = document.getElementById("jsonViewer");
+        viewer.innerHTML = "";
+        for (let key in fhirData) {
+          const element = createJsonElement(key, fhirData[key]);
+          if (element) {
+            viewer.appendChild(element);
+          }
+        }
+        collapseAll();
+        document.getElementById("expandSwitch").checked = false;
+        updateEditableState(); // Обновляем состояние редактируемости после рендеринга
+      }
+
+      document
+        .getElementById("showOnlyExtensions")
+        .addEventListener("change", renderJson);
+
+      document
+        .getElementById("expandSwitch")
+        .addEventListener("change", function (e) {
+          if (e.target.checked) {
+            expandAll();
+          } else {
+            collapseAll();
+          }
+        });
+
+      renderJson();
+    </script>
+  </body>
+</html>
