@@ -344,7 +344,7 @@ export function FlatJsonViewer({ data, onEdit, initialEditMode, onEditModeChange
                       ${item.isExtension 
                           ? 'bg-[#FFF7ED] border border-[#FDBA74] text-[#9A3412]' 
                           : 'bg-[#F3F4F6] text-gray-800'
-                      } ${enableEdit ? 'group relative hover:pr-5' : ''} 
+                      } ${enableEdit ? 'group relative' : ''} 
                       ${isValueExpanded ? 'whitespace-normal' : 'whitespace-nowrap'}`}
                     title={item.path}
                     onClick={() => toggleValueExpansion(item.path)}
@@ -354,7 +354,7 @@ export function FlatJsonViewer({ data, onEdit, initialEditMode, onEditModeChange
                     {/* Edit icon (only visible when edit mode is enabled) */}
                     {enableEdit && (
                       <span 
-                        className="ml-1 w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:text-blue-500 transition-opacity"
+                        className="absolute right-1 w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:text-blue-500 transition-opacity"
                         onClick={(e) => {
                           e.stopPropagation(); // Предотвращает переключение видимости элемента
                           if (onEdit) {
