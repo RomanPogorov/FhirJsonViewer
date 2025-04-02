@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { FlatJsonViewer } from "@/components/FlatJsonViewer";
 import { JsonEditor } from "@/components/JsonEditor";
 import { sampleFhirData } from "@/data/sampleFhirData";
@@ -13,9 +13,21 @@ export default function Home() {
   const [jsonData, setJsonData] = useState<FhirJson>(sampleFhirData);
   const [showSample, setShowSample] = useState(true);
   const [focusPath, setFocusPath] = useState<string | undefined>(undefined);
+  const [editModeEnabled, setEditModeEnabled] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+  
+  // Обработчик для изменения состояния режима редактирования
+  const handleEditModeChange = (enabled: boolean) => {
+    setEditModeEnabled(enabled);
+  };
+  
+  // Синхронизация состояния при смене вкладок
+  useEffect(() => {
+    // Нет необходимости ничего делать при смене на вкладку редактирования
+    // Но при возврате на вкладку просмотра нужно сохранить состояние редактирования
+  }, [viewType]);
   
   // Handle file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -145,6 +157,8 @@ export default function Home() {
             <FlatJsonViewer 
               data={jsonData} 
               onEdit={handleEditField}
+              initialEditMode={editModeEnabled}
+              onEditModeChange={handleEditModeChange}
             />
           </TabsContent>
           <TabsContent value="edit">

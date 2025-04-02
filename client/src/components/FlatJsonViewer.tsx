@@ -17,11 +17,13 @@ interface FlattenedValue {
 interface FlatJsonViewerProps {
   data: FhirJson;
   onEdit?: (path: string) => void;
+  initialEditMode?: boolean;
+  onEditModeChange?: (enabled: boolean) => void;
 }
 
-export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
+export function FlatJsonViewer({ data, onEdit, initialEditMode, onEditModeChange }: FlatJsonViewerProps) {
   const [showOnlyExtensions, setShowOnlyExtensions] = useState(false);
-  const [enableEdit, setEnableEdit] = useState(false);
+  const [enableEdit, setEnableEdit] = useState(initialEditMode || false);
   const [expandAll, setExpandAll] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const { toast } = useToast();
@@ -338,21 +340,21 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
                 return (
                   <span
                     key={`${item.path}-${i}`}
-                    className={`px-2 py-1 rounded text-sm inline-flex items-center cursor-pointer 
+                    className={`rounded text-sm inline-flex items-center cursor-pointer 
                       ${item.isExtension 
                           ? 'bg-[#FFF7ED] border border-[#FDBA74] text-[#9A3412]' 
                           : 'bg-[#F3F4F6] text-gray-800'
-                      } ${enableEdit ? 'group relative' : ''}
+                      } ${enableEdit ? 'group relative hover:pr-5' : 'px-2'} py-1
                       ${isValueExpanded ? 'whitespace-normal' : 'whitespace-nowrap'}`}
                     title={item.path}
                     onClick={() => toggleValueExpansion(item.path)}
                   >
-                    {displayValue}
+                    <span className="px-2">{displayValue}</span>
                     
                     {/* Edit icon (only visible when edit mode is enabled) */}
                     {enableEdit && (
                       <span 
-                        className="ml-1 w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="ml-1 w-4 h-4 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:text-blue-500 transition-opacity"
                         onClick={(e) => {
                           e.stopPropagation(); // Предотвращает переключение видимости элемента
                           if (onEdit) {
@@ -363,12 +365,16 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
                       >
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
-                          viewBox="0 0 20 20" 
-                          fill="currentColor" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          stroke="currentColor" 
+                          strokeWidth="2" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
                           className="w-3 h-3"
                         >
-                          <path d="M5.433 13.917l1.262-3.155A4 4 0 017.58 9.42l6.92-6.918a2.121 2.121 0 013 3l-6.92 6.918c-.383.383-.84.685-1.343.886l-3.154 1.262a.5.5 0 01-.65-.65z" />
-                          <path d="M3.5 5.75c0-.69.56-1.25 1.25-1.25H10A.75.75 0 0010 3H4.75A2.75 2.75 0 002 5.75v9.5A2.75 2.75 0 004.75 18h9.5A2.75 2.75 0 0017 15.25V10a.75.75 0 00-1.5 0v5.25c0 .69-.56 1.25-1.25 1.25h-9.5c-.69 0-1.25-.56-1.25-1.25v-9.5z" />
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                         </svg>
                       </span>
                     )}
@@ -408,7 +414,13 @@ export function FlatJsonViewer({ data, onEdit }: FlatJsonViewerProps) {
                 <Checkbox 
                   id="enableEdit" 
                   checked={enableEdit}
-                  onCheckedChange={(checked) => setEnableEdit(checked === true)}
+                  onCheckedChange={(checked) => {
+                    const isChecked = checked === true;
+                    setEnableEdit(isChecked);
+                    if (onEditModeChange) {
+                      onEditModeChange(isChecked);
+                    }
+                  }}
                   className="data-[state=checked]:bg-[#2563EB] data-[state=checked]:border-[#2563EB]"
                 />
                 <Label htmlFor="enableEdit" className="text-gray-600">
