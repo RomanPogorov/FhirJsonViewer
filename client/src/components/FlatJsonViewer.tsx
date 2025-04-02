@@ -251,8 +251,10 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
                 : String(item.value);
               
               const isValueExpanded = expandedValues.has(item.path);
-              const shouldTruncate = valueStr.length > 20 && !isValueExpanded;
-              const displayValue = shouldTruncate ? `${valueStr.substring(0, 20)}...` : valueStr;
+              // Программно обрезаем текст перед рендерингом
+              const displayValue = !isValueExpanded && valueStr.length > 12 
+                ? valueStr.substring(0, 12) + "..." 
+                : valueStr;
               
               return (
                 <span
@@ -262,7 +264,13 @@ export function FlatJsonViewer({ data }: FlatJsonViewerProps) {
                         ? 'bg-[#FFF7ED] border border-[#FDBA74] text-[#9A3412]' 
                         : 'bg-[#F3F4F6] text-gray-800'
                     } ${enableEdit ? 'group relative' : ''}
-                    max-w-[120px] ${isValueExpanded ? 'max-w-full whitespace-normal' : 'overflow-hidden overflow-ellipsis whitespace-nowrap'}`}
+                    ${isValueExpanded ? 'max-w-full whitespace-normal' : 'max-w-[120px] whitespace-nowrap'}`}
+                  style={{ 
+                    width: isValueExpanded ? 'auto' : '120px', 
+                    display: 'inline-block',
+                    textOverflow: 'ellipsis',
+                    overflow: isValueExpanded ? 'visible' : 'hidden'
+                  }}
                   title={item.path}
                   onClick={() => toggleValueExpansion(item.path)}
                 >

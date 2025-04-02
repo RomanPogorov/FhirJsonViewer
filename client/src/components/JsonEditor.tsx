@@ -16,10 +16,18 @@ export function JsonEditor({ data, onUpdateJson }: JsonEditorProps) {
 
   // Initialize editor with formatted JSON
   useEffect(() => {
+    if (!data || typeof data !== 'object') {
+      setError("Некорректные данные JSON");
+      return;
+    }
+
     try {
-      setEditorValue(JSON.stringify(data, null, 2));
+      const jsonStr = JSON.stringify(data, null, 2);
+      console.log("Updating editor value:", jsonStr.slice(0, 100) + "...");
+      setEditorValue(jsonStr);
       setError(null);
     } catch (err) {
+      console.error("JSON stringify error:", err);
       setError("Невозможно отформатировать JSON: " + (err as Error).message);
     }
   }, [data]);
