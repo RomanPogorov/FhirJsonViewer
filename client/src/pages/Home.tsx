@@ -17,23 +17,23 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
-  
+
   // Обработчик для изменения состояния режима редактирования
   const handleEditModeChange = (enabled: boolean) => {
     setEditModeEnabled(enabled);
   };
-  
+
   // Синхронизация состояния при смене вкладок
   useEffect(() => {
     // Нет необходимости ничего делать при смене на вкладку редактирования
     // Но при возврате на вкладку просмотра нужно сохранить состояние редактирования
   }, [viewType]);
-  
+
   // Handle file upload
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -53,28 +53,28 @@ export default function Home() {
         });
       }
     };
-    
+
     reader.readAsText(file);
   };
-  
+
   // Trigger file input click
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
-  
+
   // Reset to sample data
   const handleResetToSample = () => {
     setJsonData(sampleFhirData);
     setShowSample(true);
     if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      fileInputRef.current.value = "";
     }
     toast({
       title: "Примерные данные загружены",
       description: "Показан встроенный пример FHIR данных",
     });
   };
-  
+
   // Update JSON data from editor
   const handleJsonUpdate = (updatedJson: FhirJson) => {
     setJsonData(updatedJson);
@@ -83,66 +83,74 @@ export default function Home() {
     // Сброс пути фокуса после редактирования
     setFocusPath(undefined);
   };
-  
+
   // Функция для перехода к редактированию конкретного поля
   const handleEditField = (path: string) => {
     setFocusPath(path);
     setViewType("edit");
-    
+
     // Программно активируем вкладку редактирования, если требуется
     if (tabsRef.current) {
-      const editTab = tabsRef.current.querySelector('[data-state="inactive"][value="edit"]');
+      const editTab = tabsRef.current.querySelector(
+        '[data-state="inactive"][value="edit"]'
+      );
       if (editTab && editTab instanceof HTMLElement) {
         editTab.click();
       }
     }
-    
+
     toast({
       title: "Переход к редактированию",
       description: `Редактирование поля: ${path}`,
     });
   };
-  
+
   return (
-    <div className="bg-[#F9FAFB] font-sans text-sm text-gray-800 min-h-screen">
+    <div className="bg-[#f3f3f3] font-sans text-sm text-gray-800 min-h-screen">
       <div className="max-w-7xl mx-auto p-4 sm:p-6">
         {/* Header */}
         <div className="flex justify-between flex-col md:flex-row md:items-end gap-4 mb-6">
           <div>
-            <h1 className="text-2xl font-semibold text-[#18273F]">FHIR JSON Viewer</h1>
-            <p className="text-gray-500">Interactive viewer for FHIR JSON resources with extension support</p>
+            <h1 className="text-2xl font-semibold text-[#18273F]">
+              Aidbox JSON Viewer
+            </h1>
+            <p className="text-gray-500">
+              Interactive viewer for FHIR JSON resources with extension support
+            </p>
           </div>
-          
+
           {/* File Upload Controls */}
           <div className="flex items-center gap-2">
-            <Input 
+            <Input
               ref={fileInputRef}
-              type="file" 
+              type="file"
               accept=".json"
               className="hidden"
               onChange={handleFileUpload}
             />
-            <Button 
-              variant="outline" 
-              size="sm"
+            <Button
+              variant="outline"
               onClick={() => {
-                navigator.clipboard.writeText(JSON.stringify(jsonData, null, 2));
+                navigator.clipboard.writeText(
+                  JSON.stringify(jsonData, null, 2)
+                );
                 toast({
                   title: "Скопировано!",
                   description: "JSON скопирован в буфер обмена",
                 });
               }}
-              className="text-xs text-gray-700 border-gray-300"
+              className="text-gray-700 border-gray-300"
             >
-              Копировать JSON
+              Copy JSON
             </Button>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
+
+            <Button
+              variant="outline"
               onClick={() => {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(jsonData, null, 2));
-                const downloadAnchorNode = document.createElement('a');
+                const dataStr =
+                  "data:text/json;charset=utf-8," +
+                  encodeURIComponent(JSON.stringify(jsonData, null, 2));
+                const downloadAnchorNode = document.createElement("a");
                 downloadAnchorNode.setAttribute("href", dataStr);
                 downloadAnchorNode.setAttribute("download", "fhir-data.json");
                 document.body.appendChild(downloadAnchorNode);
@@ -153,54 +161,54 @@ export default function Home() {
                   description: "FHIR JSON сохранен в файл fhir-data.json",
                 });
               }}
-              className="text-xs text-gray-700 border-gray-300"
+              className="text-gray-700 border-gray-300"
             >
-              Экспорт в файл
+              Export JSON
             </Button>
-            
-            <Button 
-              variant="outline" 
+
+            <Button
+              variant="outline"
               onClick={handleUploadClick}
               className="text-gray-700 border-gray-300"
             >
-              Загрузить JSON
+              Upload JSON
             </Button>
             {!showSample && (
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 onClick={handleResetToSample}
                 className="text-gray-500"
               >
-                Вернуться к примеру
+                Reset to default
               </Button>
             )}
           </div>
         </div>
-        
+
         {/* View Type Selector */}
-        <Tabs 
-          defaultValue="view" 
-          className="mb-6" 
+        <Tabs
+          defaultValue="view"
+          className="mb-6"
           value={viewType}
           onValueChange={(value) => setViewType(value as "view" | "edit")}
           ref={tabsRef}
         >
-          <TabsList className="grid w-[400px] grid-cols-2 mb-4">
-            <TabsTrigger value="view">Просмотр</TabsTrigger>
-            <TabsTrigger value="edit">Редактирование</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-2 mb-4 justify-center text-neutral-100 bg-gray-400">
+            <TabsTrigger value="view">View</TabsTrigger>
+            <TabsTrigger value="edit">Edit</TabsTrigger>
           </TabsList>
           <TabsContent value="view">
-            <FlatJsonViewer 
-              data={jsonData} 
+            <FlatJsonViewer
+              data={jsonData}
               onEdit={handleEditField}
               initialEditMode={editModeEnabled}
               onEditModeChange={handleEditModeChange}
             />
           </TabsContent>
           <TabsContent value="edit">
-            <JsonEditor 
-              data={jsonData} 
-              onUpdateJson={handleJsonUpdate} 
+            <JsonEditor
+              data={jsonData}
+              onUpdateJson={handleJsonUpdate}
               focusPath={focusPath}
             />
           </TabsContent>
