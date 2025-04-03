@@ -45,5 +45,4 @@ npm start
 
 Если у вас есть вопросы или предложения, свяжитесь со мной:
 
-- **Email**: ваш_email@example.com
-- **GitHub**: [ваш_username](https://github.com/roman.pogorov@gmail.com)
+- **Email**: roman.pogorov@gmail.com
