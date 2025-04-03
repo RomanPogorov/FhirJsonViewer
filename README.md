@@ -1,4 +1,4 @@
-# Aidbox JSON Viewer
+#JSON Viewer
 
 ## Описание проекта
 
